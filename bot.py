@@ -1,10 +1,11 @@
 # bot.py
-from asyncio.windows_events import NULL
-import os
 
+import os
 import discord
+from discord.errors import ClientException
 from dotenv import load_dotenv
-from discord.ext import commands
+from discord.ext import tasks, commands
+import speech_recognition as sr
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -28,9 +29,9 @@ async def join_call(ctx):
                     return True, vc
                 except:
                     print('uh oh')
-                return False, NULL
-    await ctx.send(ctx.message.author.name + ' isn\'nt in a voice channel :(')
-    return False, NULL
+                return False, None
+    await ctx.send(ctx.message.author.name + ' isn\'t in a voice channel :(')
+    return False, None
 
 async def disconnect_call(ctx):
     for v_client in bot.voice_clients:
@@ -38,9 +39,33 @@ async def disconnect_call(ctx):
             vc_name = v_client.channel.name
             await v_client.disconnect()
             await ctx.send('Disconnected from the ' + vc_name + ' channel')
-            
-async def play_audio(ctx):
-    return
+        
+async def listen(ctx):
+    r = sr.Recognizer()
+    speech = None
+    with sr.Microphone() as source:
+        print("Sphinx is listening")
+        audio = r.listen(source)
+    try:
+        print("Text: " + r.recognize_sphinx(audio))
+        speech = r.recognize_sphinx(audio)
+    except sr.UnknownValueError:
+        print("Sphinx could not understand audio")
+    except sr.RequestError as e:
+        print("Sphinx error; {0}".format(e))
+        
+    return await process_speech(ctx, speech)
+              
+async def process_speech(ctx, speech):
+    if not speech:
+        print('no text to process')
+    if 'playing music' in speech:
+        await playfile(ctx, './audio/sample.mp3')
+    elif 'karaoke' in speech:
+        await playfile(ctx, './audio/bakamitai.mp3')
+    print('done')
+    # return await listen()
+    
             
 # EVENTS
 @bot.event
@@ -50,11 +75,20 @@ async def on_connect():
             f'{bot.user} is connected to the following guild:\n'
             f'{guild.name}(id: {guild.id})'
         )
+
+@bot.event
+async def on_voice_state_update(user, before, after):
+    for v_client in bot.voice_clients:
+        if v_client.guild == user.guild:
+            if len(v_client.channel.members) == 1:
+                await v_client.disconnect()
         
 # COMMANDS
-@bot.command(name='join_call')
+@bot.command(name='vc')
 async def join(ctx):
-    await join_call(ctx)
+    in_vc,_ =await join_call(ctx)
+    if in_vc:
+        await listen(ctx)
     
 @bot.command(name='disconnect')
 async def disconnect(ctx):
@@ -66,8 +100,18 @@ async def bakamitai(ctx):
     if in_call:
         for v_client in bot.voice_clients:
             if v_client.channel.id == vc.id:
-                await ctx.send('yay')
-                return     
+                await playfile(ctx, './audio/bakamitai.mp3')     
+
+@bot.command(name='playfile')
+async def playfile(ctx, file):
+    print(file)
+    await join_call(ctx)
+    for v_client in bot.voice_clients:
+        if v_client.guild == ctx.message.guild:
+            v_client.stop() 
+$
+            # v_client.play(discord.FFmpegPCMAudio( \
+            #     executable="C:/ffmpeg/bin/ffmpeg.exe", source=file))
 
 
 @bot.command(name='shutdown')
@@ -76,6 +120,7 @@ async def shutdown(ctx):
     await ctx.send('BYE BYE')
     await bot.close()
 
+# TASKS
 
-
+# BOT RUN
 bot.run(TOKEN)
