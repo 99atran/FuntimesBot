@@ -42,12 +42,13 @@ async def disconnect_call(ctx):
         
 async def listen(ctx):
     r = sr.Recognizer()
+    r.energy_threshold = 300
     speech = None
-    with sr.Microphone() as source:
+    with sr.Microphone(device_index=1, sample_rate=16000, chunk_size=1024) as source:
         print("Sphinx is listening")
         audio = r.listen(source)
     try:
-        print("Text: " + r.recognize_sphinx(audio))
+        print("Text: " + r.recognize_sphinx(audio, language='en-US'))
         speech = r.recognize_sphinx(audio)
     except sr.UnknownValueError:
         print("Sphinx could not understand audio")
@@ -109,7 +110,8 @@ async def playfile(ctx, file):
     for v_client in bot.voice_clients:
         if v_client.guild == ctx.message.guild:
             v_client.stop() 
-$
+            v_client.play(discord.FFmpegOpusAudio( \
+                executable="C:/ffmpeg/bin/ffmpeg.exe", source=file, bitrate=128))
             # v_client.play(discord.FFmpegPCMAudio( \
             #     executable="C:/ffmpeg/bin/ffmpeg.exe", source=file))
 
